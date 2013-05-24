@@ -20,6 +20,10 @@ import com.sun.jersey.api.client.ClientResponse;
 import java.io.File;
 import java.io.IOException;
 import org.apache.maven.plugin.logging.Log;
+import org.neo4j.cypher.ExecutionEngine;
+import org.neo4j.cypher.ExecutionResult;
+import org.neo4j.cypher.SyntaxException;
+import org.neo4j.kernel.impl.util.StringLogger;
 import org.neo4j.server.CommunityNeoServer;
 import org.neo4j.server.helpers.ServerBuilder;
 
@@ -30,7 +34,7 @@ import org.neo4j.server.helpers.ServerBuilder;
  */
 public class Neo4jServerThread extends Thread {
 
-    private static enum State {
+    public static enum State {
 
         INITIALIZE,
         STARTING,
@@ -85,6 +89,15 @@ public class Neo4jServerThread extends Thread {
         return this;
     }
 
+    public synchronized ExecutionResult populateDatabase(String cypherQuery) throws SyntaxException {
+        checkState(State.RUNNING);
+        log.info(String.format("Bootstrap of Neo4j CommunityServer with Cypher query:%n%s%n", cypherQuery));
+        server.getDatabase().getIndexManager().getNodeAutoIndexer().setEnabled(true);
+        server.getDatabase().getIndexManager().getNodeAutoIndexer().startAutoIndexingProperty("name");
+        ExecutionEngine engine = new ExecutionEngine(server.getDatabase().getGraph(), StringLogger.SYSTEM);
+        return engine.execute(cypherQuery);
+    }
+
     @Override
     public synchronized void start() {
         checkState(State.INITIALIZE);
@@ -95,6 +108,7 @@ public class Neo4jServerThread extends Thread {
             server.start();
             log.info("Neo4j CommunityServer started.");
             super.start();
+            this.state = State.RUNNING;
         } catch (IOException ex) {
             log.error("cannot build Neo4j CommunityServer", ex);
         }
@@ -103,10 +117,6 @@ public class Neo4jServerThread extends Thread {
     @Override
     @SuppressWarnings("SleepWhileInLoop")
     public void run() {
-        synchronized (this) {
-            checkState(State.STARTING);
-            this.state = State.RUNNING;
-        }
         do {
             if (aliveCheckPeriod > 0) {
                 try {

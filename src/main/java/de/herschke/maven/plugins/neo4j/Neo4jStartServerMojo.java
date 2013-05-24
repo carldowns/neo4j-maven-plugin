@@ -16,11 +16,14 @@
 package de.herschke.maven.plugins.neo4j;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.Properties;
+import java.util.Scanner;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.neo4j.cypher.SyntaxException;
 
 /**
  * Goal which starts a neo4j server.
@@ -38,6 +41,10 @@ public class Neo4jStartServerMojo extends AbstractMojo {
     private ServerExtension[] serverExtensions;
     @Parameter
     private Properties serverProperties;
+    @Parameter
+    private File bootstrapFile;
+    @Parameter
+    private String bootstrapCypher;
 
     public void setPort(int port) {
         this.port = port;
@@ -71,6 +78,22 @@ public class Neo4jStartServerMojo extends AbstractMojo {
         this.serverProperties = serverProperties;
     }
 
+    public File getBootstrapFile() {
+        return bootstrapFile;
+    }
+
+    public void setBootstrapFile(File bootstrapFile) {
+        this.bootstrapFile = bootstrapFile;
+    }
+
+    public String getBootstrapCypher() {
+        return bootstrapCypher;
+    }
+
+    public void setBootstrapCypher(String bootstrapCypher) {
+        this.bootstrapCypher = bootstrapCypher;
+    }
+
     public void execute()
             throws MojoExecutionException {
         final Neo4jServerThread neo4jServerThread = new Neo4jServerThread(getLog(), "localhost", port);
@@ -89,5 +112,18 @@ public class Neo4jStartServerMojo extends AbstractMojo {
         }
         getPluginContext().put("neo4j-server-thread", neo4jServerThread);
         neo4jServerThread.start();
+        try {
+            String cypher = bootstrapCypher;
+            if (bootstrapFile != null) {
+                cypher = new Scanner(bootstrapFile, "UTF-8").useDelimiter("\\Z").next();
+            }
+            if (cypher != null && cypher.trim().length() > 0) {
+                getLog().info(neo4jServerThread.populateDatabase(cypher).dumpToString());
+            }
+        } catch (FileNotFoundException ex) {
+            getLog().error(String.format("cannot find bootstrap file: %s", bootstrapFile), ex);
+        } catch (SyntaxException ex) {
+            getLog().error("cannot bootstrap Neo4j CommunityServer", ex);
+        }
     }
 }
