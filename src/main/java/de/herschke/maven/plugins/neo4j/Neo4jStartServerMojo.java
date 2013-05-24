@@ -15,14 +15,12 @@
  */
 package de.herschke.maven.plugins.neo4j;
 
-import org.apache.maven.execution.MavenSession;
+import java.io.File;
+import java.util.Properties;
 import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecution;
 import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
 
 /**
  * Goal which starts a neo4j server.
@@ -32,14 +30,14 @@ import org.apache.maven.project.MavenProject;
 @Mojo(name = "start-server")
 public class Neo4jStartServerMojo extends AbstractMojo {
 
-    @Component
-    private MavenSession session;
-    @Component
-    private MavenProject project;
-    @Component
-    private MojoExecution mojo;
     @Parameter(defaultValue = "7474")
     private int port;
+    @Parameter
+    private File databasePath;
+    @Parameter
+    private ServerExtension[] serverExtensions;
+    @Parameter
+    private Properties serverProperties;
 
     public void setPort(int port) {
         this.port = port;
@@ -49,33 +47,46 @@ public class Neo4jStartServerMojo extends AbstractMojo {
         return port;
     }
 
-    public MavenSession getSession() {
-        return session;
+    public File getDatabasePath() {
+        return databasePath;
     }
 
-    public void setSession(MavenSession session) {
-        this.session = session;
+    public void setDatabasePath(File databasePath) {
+        this.databasePath = databasePath;
     }
 
-    public MavenProject getProject() {
-        return project;
+    public ServerExtension[] getServerExtensions() {
+        return serverExtensions;
     }
 
-    public void setProject(MavenProject project) {
-        this.project = project;
+    public void setServerExtensions(ServerExtension[] serverExtensions) {
+        this.serverExtensions = serverExtensions;
     }
 
-    public MojoExecution getMojo() {
-        return mojo;
+    public Properties getServerProperties() {
+        return serverProperties;
     }
 
-    public void setMojo(MojoExecution mojo) {
-        this.mojo = mojo;
+    public void setServerProperties(Properties serverProperties) {
+        this.serverProperties = serverProperties;
     }
 
     public void execute()
             throws MojoExecutionException {
         final Neo4jServerThread neo4jServerThread = new Neo4jServerThread(getLog(), "localhost", port);
+        if (databasePath != null) {
+            neo4jServerThread.useDatabaseDir(databasePath);
+        }
+        if (serverProperties != null) {
+            for (String key : serverProperties.stringPropertyNames()) {
+                neo4jServerThread.withProperty(key, serverProperties.getProperty(key));
+            }
+        }
+        if (serverExtensions != null) {
+            for (ServerExtension extension : serverExtensions) {
+                neo4jServerThread.withExtension(extension);
+            }
+        }
         getPluginContext().put("neo4j-server-thread", neo4jServerThread);
         neo4jServerThread.start();
     }

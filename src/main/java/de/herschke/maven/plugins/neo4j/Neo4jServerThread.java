@@ -30,45 +30,70 @@ import org.neo4j.server.helpers.ServerBuilder;
  */
 public class Neo4jServerThread extends Thread {
 
+    private static enum State {
+
+        INITIALIZE,
+        STARTING,
+        RUNNING,
+        STOPPING,
+        STOPPED
+    }
+    private State state = State.INITIALIZE;
     private CommunityNeoServer server;
     private final String host;
     private final int port;
-    private final File databaseDir;
     private final Log log;
     private final Client client;
     private final long aliveCheckPeriod;
-    private boolean running;
+    private final ServerBuilder serverBuilder;
 
     public Neo4jServerThread(Log mojoLog, String host, int port) {
-        this(mojoLog, host, port, 1000, null);
+        this(mojoLog, host, port, 1000);
     }
 
-    public Neo4jServerThread(Log mojoLog, String host, int port, long aliveCheckPeriod, File databaseDir) {
+    public Neo4jServerThread(Log mojoLog, String host, int port, long aliveCheckPeriod) {
         super("neo4j-server-thread");
         super.setDaemon(true);
         this.log = mojoLog;
         this.host = host;
         this.port = port;
-        this.databaseDir = databaseDir;
         this.aliveCheckPeriod = aliveCheckPeriod;
         client = Client.create();
         client.setFollowRedirects(false);
+        log.info(String.format("Building Neo4j CommunityServer at: http://%s:%s/", host, port));
+        serverBuilder = ServerBuilder.server().onHost(host).onPort(port);
+    }
+
+    public Neo4jServerThread useDatabaseDir(File databaseDir) {
+        checkState(State.INITIALIZE);
+        log.info(String.format("Neo4j CommunityServer will use database at: %s", databaseDir.getAbsolutePath()));
+        serverBuilder.usingDatabaseDir(databaseDir.getAbsolutePath());
+        return this;
+    }
+
+    public Neo4jServerThread withExtension(ServerExtension extension) {
+        checkState(State.INITIALIZE);
+        log.info(String.format("Neo4j CommunityServer will use extension with package: %s at mount point: %s", extension.getPackageName(), extension.getMountPoint()));
+        serverBuilder.withThirdPartyJaxRsPackage(extension.getPackageName(), extension.getMountPoint());
+        return this;
+    }
+
+    public Neo4jServerThread withProperty(String key, String value) {
+        checkState(State.INITIALIZE);
+        log.info(String.format("Neo4j CommunityServer will use property: %s = %s", key, value));
+        serverBuilder.withProperty(key, value);
+        return this;
     }
 
     @Override
     public synchronized void start() {
+        checkState(State.INITIALIZE);
+        this.state = State.STARTING;
         try {
-            log.info(String.format("Building Neo4j CommunityServer at: http://%s:%s/", host, port));
-            ServerBuilder sb = ServerBuilder.server().onHost(host).onPort(port);
-            if (databaseDir != null) {
-                log.info(String.format("Neo4j CommunityServer will use database at: %s", databaseDir.getAbsolutePath()));
-                sb.usingDatabaseDir(databaseDir.getAbsolutePath());
-            }
-            server = sb.build();
+            server = serverBuilder.build();
             log.info("Starting Neo4j CommunityServer");
             server.start();
             log.info("Neo4j CommunityServer started.");
-            this.running = true;
             super.start();
         } catch (IOException ex) {
             log.error("cannot build Neo4j CommunityServer", ex);
@@ -78,13 +103,23 @@ public class Neo4jServerThread extends Thread {
     @Override
     @SuppressWarnings("SleepWhileInLoop")
     public void run() {
+        synchronized (this) {
+            checkState(State.STARTING);
+            this.state = State.RUNNING;
+        }
         do {
-            try {
-                Thread.sleep(aliveCheckPeriod);
-            } catch (InterruptedException ex) {
-                log.warn("Thread was interrupted: ", ex);
+            if (aliveCheckPeriod > 0) {
+                try {
+                    Thread.sleep(aliveCheckPeriod);
+                } catch (InterruptedException ex) {
+                    log.warn("Thread was interrupted: ", ex);
+                }
             }
         } while (checkRunning() && checkAlive());
+        synchronized (this) {
+            this.state = State.STOPPED;
+        }
+        log.info("Neo4j CommunityServer stopped.");
     }
 
     private synchronized boolean checkAlive() {
@@ -92,18 +127,24 @@ public class Neo4jServerThread extends Thread {
         return client.resource(String.format("http://%s:%s/", host, port)).get(ClientResponse.class).getStatus() >= 200;
     }
 
+    private synchronized void checkState(State expected) {
+        if (this.state != expected) {
+            throw new IllegalStateException(String.format("Not in expected %s state. Current State is: %s", expected.name(), this.state));
+        }
+    }
+
     private synchronized boolean checkRunning() {
-        return running;
+        return this.state == State.RUNNING;
     }
 
     public synchronized void shutdown() {
-        running = false;
+        checkState(State.RUNNING);
         if (server == null) {
             log.warn("Neo4j CommunityServer is not available. Already shut down?");
         } else {
+            this.state = State.STOPPING;
             log.info("Stopping Neo4j CommunityServer");
             server.stop();
-            log.info("Neo4j CommunityServer stopped.");
         }
     }
 }
