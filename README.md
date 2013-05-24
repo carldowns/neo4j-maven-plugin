@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This is (yet very simple) a maven plugin to start and stop an embedded Neo4j Community Server on a given port. With this plugin, it is possible, to run integration tests, that depends on an existing Neo4j Server.
+This is a (yet very simple) maven plugin to start and stop an embedded Neo4j Community Server on a given port. With this plugin, it is possible, to run integration tests, that depends on an existing Neo4j Server.
 
 ## Usage
 
