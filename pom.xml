@@ -3,7 +3,7 @@
     <groupId>de.herschke</groupId>
     <artifactId>neo4j-maven-plugin</artifactId>
     <packaging>maven-plugin</packaging>
-    <version>1.0</version>
+    <version>1.1-SNAPSHOT</version>
     <name>Maven Plugin for Neo4j Community Server</name>
     <properties>
         <neo4j.version>1.9</neo4j.version>
