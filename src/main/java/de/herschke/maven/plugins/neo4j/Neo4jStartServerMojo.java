@@ -33,8 +33,8 @@ import org.neo4j.cypher.SyntaxException;
 @Mojo(name = "start-server")
 public class Neo4jStartServerMojo extends AbstractMojo {
 
-    @Parameter(defaultValue = "7474")
-    private int port;
+    @Parameter
+    private int port = Integer.getInteger("neo4j.port");
     @Parameter
     private File databasePath;
     @Parameter
