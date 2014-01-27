@@ -17,7 +17,6 @@ package de.herschke.maven.plugins.neo4j;
 
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
-import java.io.File;
 import java.io.IOException;
 import org.apache.maven.plugin.logging.Log;
 import org.neo4j.cypher.ExecutionEngine;
@@ -25,7 +24,7 @@ import org.neo4j.cypher.ExecutionResult;
 import org.neo4j.cypher.SyntaxException;
 import org.neo4j.kernel.impl.util.StringLogger;
 import org.neo4j.server.CommunityNeoServer;
-import org.neo4j.server.helpers.ServerBuilder;
+import org.neo4j.server.helpers.CommunityServerBuilder;
 
 /**
  * represents a deamon thread that starts a neo4j server
@@ -49,13 +48,14 @@ public class Neo4jServerThread extends Thread {
     private final Log log;
     private final Client client;
     private final long aliveCheckPeriod;
-    private final ServerBuilder serverBuilder;
+    private final CommunityServerBuilder serverBuilder;
 
     public Neo4jServerThread(Log mojoLog, String host, int port) {
         this(mojoLog, host, port, 1000);
     }
 
-    public Neo4jServerThread(Log mojoLog, String host, int port, long aliveCheckPeriod) {
+    public Neo4jServerThread(Log mojoLog, String host, int port,
+            long aliveCheckPeriod) {
         super("neo4j-server-thread");
         super.setDaemon(true);
         this.log = mojoLog;
@@ -64,37 +64,54 @@ public class Neo4jServerThread extends Thread {
         this.aliveCheckPeriod = aliveCheckPeriod;
         client = Client.create();
         client.setFollowRedirects(false);
-        log.info(String.format("Building Neo4j CommunityServer at: http://%s:%s/", host, port));
-        serverBuilder = ServerBuilder.server().onHost(host).onPort(port);
+        log.info(String.format(
+                "Building Neo4j CommunityServer at: http://%s:%s/", host, port));
+        serverBuilder = CommunityServerBuilder.server().onHost(host)
+                .onPort(port);
     }
 
-    public Neo4jServerThread useDatabaseDir(File databaseDir) {
+    public Neo4jServerThread useDatabaseDir(String databaseDir) throws
+            IOException {
         checkState(State.INITIALIZE);
-        log.info(String.format("Neo4j CommunityServer will use database at: %s", databaseDir.getAbsolutePath()));
-        serverBuilder.usingDatabaseDir(databaseDir.getAbsolutePath());
+        if (!databaseDir.endsWith("/")) {
+            databaseDir += "/";
+        }
+        log.info(String.format("Neo4j CommunityServer will use database at: %s",
+                databaseDir));
+        serverBuilder.usingDatabaseDir(databaseDir);
         return this;
     }
 
     public Neo4jServerThread withExtension(ServerExtension extension) {
         checkState(State.INITIALIZE);
-        log.info(String.format("Neo4j CommunityServer will use extension with package: %s at mount point: %s", extension.getPackageName(), extension.getMountPoint()));
-        serverBuilder.withThirdPartyJaxRsPackage(extension.getPackageName(), extension.getMountPoint());
+        log.info(String.format(
+                "Neo4j CommunityServer will use extension with package: %s at mount point: %s",
+                extension.getPackageName(), extension.getMountPoint()));
+        serverBuilder.withThirdPartyJaxRsPackage(extension.getPackageName(),
+                extension.getMountPoint());
         return this;
     }
 
     public Neo4jServerThread withProperty(String key, String value) {
         checkState(State.INITIALIZE);
-        log.info(String.format("Neo4j CommunityServer will use property: %s = %s", key, value));
+        log.info(String.format(
+                "Neo4j CommunityServer will use property: %s = %s", key, value));
         serverBuilder.withProperty(key, value);
         return this;
     }
 
-    public synchronized ExecutionResult populateDatabase(String cypherQuery) throws SyntaxException {
+    public synchronized ExecutionResult populateDatabase(String cypherQuery)
+            throws SyntaxException {
         checkState(State.RUNNING);
-        log.info(String.format("Bootstrap of Neo4j CommunityServer with Cypher query:%n%s%n", cypherQuery));
-        server.getDatabase().getIndexManager().getNodeAutoIndexer().setEnabled(true);
-        server.getDatabase().getIndexManager().getNodeAutoIndexer().startAutoIndexingProperty("name");
-        ExecutionEngine engine = new ExecutionEngine(server.getDatabase().getGraph(), StringLogger.SYSTEM);
+        log.info(String.format(
+                "Bootstrap of Neo4j CommunityServer with Cypher query:%n%s%n",
+                cypherQuery));
+        server.getDatabase().getIndexManager().getNodeAutoIndexer().setEnabled(
+                true);
+        server.getDatabase().getIndexManager().getNodeAutoIndexer()
+                .startAutoIndexingProperty("name");
+        ExecutionEngine engine = new ExecutionEngine(server.getDatabase()
+                .getGraph(), StringLogger.SYSTEM);
         return engine.execute(cypherQuery);
     }
 
@@ -106,7 +123,8 @@ public class Neo4jServerThread extends Thread {
             server = serverBuilder.build();
             log.info("Starting Neo4j CommunityServer");
             server.start();
-            log.info("Neo4j CommunityServer started.");
+            log.info(String.format("Neo4j CommunityServer started at %s", server
+                    .getDatabase().getLocation()));
             super.start();
             this.state = State.RUNNING;
         } catch (IOException ex) {
@@ -134,12 +152,15 @@ public class Neo4jServerThread extends Thread {
 
     private synchronized boolean checkAlive() {
         log.debug("check, if server is still alive...");
-        return client.resource(String.format("http://%s:%s/", host, port)).get(ClientResponse.class).getStatus() >= 200;
+        return client.resource(String.format("http://%s:%s/", host, port)).get(
+                ClientResponse.class).getStatus() >= 200;
     }
 
     private synchronized void checkState(State expected) {
         if (this.state != expected) {
-            throw new IllegalStateException(String.format("Not in expected %s state. Current State is: %s", expected.name(), this.state));
+            throw new IllegalStateException(String.format(
+                    "Not in expected %s state. Current State is: %s", expected
+                    .name(), this.state));
         }
     }
 
@@ -150,7 +171,8 @@ public class Neo4jServerThread extends Thread {
     public synchronized void shutdown() {
         checkState(State.RUNNING);
         if (server == null) {
-            log.warn("Neo4j CommunityServer is not available. Already shut down?");
+            log.warn(
+                    "Neo4j CommunityServer is not available. Already shut down?");
         } else {
             this.state = State.STOPPING;
             log.info("Stopping Neo4j CommunityServer");

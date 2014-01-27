@@ -17,8 +17,10 @@ package de.herschke.maven.plugins.neo4j;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Properties;
 import java.util.Scanner;
+import org.apache.commons.lang.StringUtils;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -36,7 +38,7 @@ public class Neo4jStartServerMojo extends AbstractMojo {
     @Parameter
     private int port = Integer.getInteger("neo4j.port", 7474);
     @Parameter
-    private File databasePath;
+    private String databasePath = System.getProperty("neo4j.databasePath", null);
     @Parameter
     private ServerExtension[] serverExtensions;
     @Parameter
@@ -54,11 +56,11 @@ public class Neo4jStartServerMojo extends AbstractMojo {
         return port;
     }
 
-    public File getDatabasePath() {
+    public String getDatabasePath() {
         return databasePath;
     }
 
-    public void setDatabasePath(File databasePath) {
+    public void setDatabasePath(String databasePath) {
         this.databasePath = databasePath;
     }
 
@@ -96,9 +98,19 @@ public class Neo4jStartServerMojo extends AbstractMojo {
 
     public void execute()
             throws MojoExecutionException {
-        final Neo4jServerThread neo4jServerThread = new Neo4jServerThread(getLog(), "localhost", port);
-        if (databasePath != null) {
-            neo4jServerThread.useDatabaseDir(databasePath);
+        final Neo4jServerThread neo4jServerThread = new Neo4jServerThread(
+                getLog(), "localhost", port);
+        if (StringUtils.isNotBlank(databasePath)) {
+            try {
+                final File dbpath = new File(databasePath);
+                if (!dbpath.exists()) {
+                    dbpath.mkdirs();
+                }
+                neo4jServerThread.useDatabaseDir(dbpath
+                        .getAbsolutePath());
+            } catch (IOException ex) {
+                getLog().error("cannot set database path", ex);
+            }
         }
         if (serverProperties != null) {
             for (String key : serverProperties.stringPropertyNames()) {
