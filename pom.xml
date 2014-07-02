@@ -6,7 +6,7 @@
     <version>2.0.1</version>
     <name>Maven Plugin for Neo4j Community Server</name>
     <properties>
-        <neo4j.version>2.0.0</neo4j.version>
+        <neo4j.version>2.0.1</neo4j.version>
         <jersey.version>1.9</jersey.version>
     </properties>
     <dependencies>

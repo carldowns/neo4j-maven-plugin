@@ -14,7 +14,7 @@ The plugin is available at the following maven coordinates:
 | :--------- | :----------------- |
 | groupId    | de.herschke        |
 | artifactId | neo4j-maven-plugin |
-| version    | 1.0-SNAPSHOT       |
+| version    | 2.0.1-SNAPSHOT     |
 
 To use the plugin, you have to:
 - clone this repo, 
@@ -42,7 +42,7 @@ Here is a sample `pom.xml` that uses this plugin:
                     <plugin>
                         <groupId>de.herschke</groupId>
                         <artifactId>neo4j-maven-plugin</artifactId>
-                        <version>1.0-SNAPSHOT</version>
+                        <version>2.0.1-SNAPSHOT</version>
                         <executions>
                             <execution>
                                 <id>start-neo4j-server</id>
@@ -93,7 +93,7 @@ Here's an example:
     <plugin>
         <groupId>de.herschke</groupId>
         <artifactId>neo4j-maven-plugin</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>2.0.1-SNAPSHOT</version>
         <executions>
             <execution>
                 <id>start-neo4j-server</id>
@@ -121,6 +121,54 @@ Here's an example:
             </dependency>
         </dependencies>
     </plugin>
+    ...
+</project>
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Using Server Plugins
+
+To use a server plugin (e.g. [Neo4j Spatial](https://github.com/neo4j/spatial)), 
+just add the dependency to the plugin configuration. The plugin will 
+automatically announce itself.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+<project>
+    ...
+           <build>
+                <plugins>
+                    <plugin>
+                        <groupId>de.herschke</groupId>
+                        <artifactId>neo4j-maven-plugin</artifactId>
+                        <version>2.0.1-SNAPSHOT</version>
+                        <executions>
+                            <execution>
+                                <id>start-neo4j-server</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>start-server</goal>
+                                </goals>
+                                <configuration>
+                                    <port>7777</port>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>stop-neo4j-server</id>
+                                <phase>post-integration-test</phase>
+                                <goals>
+                                    <goal>stop-server</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <dependencies>
+                            <dependency>
+                                <artifactId>neo4j-spatial</artifactId>
+                                <groupId>org.neo4j</groupId>
+                                <version>0.12-neo4j-2.0.0-SNAPSHOT</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                </plugins>
+            </build>
     ...
 </project>
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
